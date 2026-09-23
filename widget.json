@@ -1,0 +1,83 @@
+{
+    "id": "com.porticobenefits.memberoperations",
+    "name": "AE Member Enrollment Operational Dashboard",
+    "version": "1.1.0",
+    "vendor": "Portico Benefits",
+    "license": "",
+    "eula": "",
+    "description": "Working-team dashboard for Member Annual Enrollment: full Enrollment Status breakdown by Wave, election-detail counts/averages (HSA/FSA/Supplemental Life/Retirement/Vision), and a waiver trend by membership type (Sponsored vs. Retired). Split off from AE Member Enrollment (Snap) on 2026-09-22, same suite structure as the Employer Election family.",
+    "newInstancePrefix": "MemberOperations",
+    "icon": "https://bboehm1986.github.io/sac-member-operational-widget/icon.svg",
+    "webcomponents": [
+        {
+            "kind": "main",
+            "tag": "com-porticobenefits-memberoperations",
+            "url": "https://bboehm1986.github.io/sac-member-operational-widget/main.js",
+            "integrity": ""
+        }
+    ],
+    "properties": {
+        "width": {
+            "type": "integer",
+            "default": 900
+        },
+        "height": {
+            "type": "integer",
+            "default": 750
+        },
+        "asOfLabel": {
+            "type": "string",
+            "default": ""
+        }
+    },
+    "dataBindings": {
+        "enrollmentStatusByWave": {
+            "feeds": [
+                {
+                    "id": "dimensions",
+                    "description": "Wave / Enrollment Status / Defaulted / Defaulted Timing — same DS_MEMBER_ENROLLMENT_SUMMARY cube the Snap widget (sac-member-enrollment-widget) binds to, rendered here as a full per-Wave status breakdown instead of just Set Up/Completed headline tiles.",
+                    "type": "dimension"
+                },
+                {
+                    "id": "measures",
+                    "description": "Member Count, Multiple-Attempts Member Count, Total Eligible Lives, Total Covered Lives (last two added 2026-09-22 -- current-snapshot family-size counts from vDimMember's EligibleCount/HealthCoveredCount, member plus eligible/covered dependents; NOT a year-over-year trend -- true YoY volume trending is a separate ongoing effort with Ahmed)",
+                    "type": "mainStructureMember"
+                }
+            ]
+        },
+        "electionSummary": {
+            "feeds": [
+                {
+                    "id": "dimensions",
+                    "description": "Wave — DS_MEMBER_ELECTION_SUMMARY, current-cycle scoped",
+                    "type": "dimension"
+                },
+                {
+                    "id": "measures",
+                    "description": "HSA_Count/Avg_Amount, FSA_Health_Count/Avg_Amount, FSA_Dependent_Count/Avg_Amount, SuppLife_Member/Spouse/Dependent_Count/Avg_Amount, Retirement_Pretax/Roth_Count/Avg_Amount, Vision_Election_Count",
+                    "type": "mainStructureMember"
+                }
+            ]
+        },
+        "waiverTrend": {
+            "feeds": [
+                {
+                    "id": "dimensions",
+                    "description": "EventDate (cycle) / Membership Type (Sponsored / Retired / Other) — DS_MEMBER_WAIVER_TREND, unscoped by cycle so both years are present for the trend",
+                    "type": "dimension"
+                },
+                {
+                    "id": "measures",
+                    "description": "Member Count, Waived Count",
+                    "type": "mainStructureMember"
+                }
+            ]
+        }
+    },
+    "methods": {
+        "refresh": {
+            "description": "Re-renders the dashboard from the currently bound data"
+        }
+    },
+    "events": {}
+}
