@@ -11,52 +11,77 @@
     (HSA/FSA/Supplemental Life/Retirement/Vision), and a waiver trend by
     membership type (Sponsored vs. Retired).
 
-    Three PRE-AGGREGATED data bindings (declared in widget.json), never
-    Gold-layer member-level rows directly — same governance as every other
-    widget in this suite except sac-member-detail-widget. Each follows
+    ONE PRE-AGGREGATED data binding (declared in widget.json) — never
+    Gold-layer member-level rows directly, same governance as every other
+    widget in this suite except sac-member-detail-widget.
+
+    REDESIGNED 2026-09-30: a single SAC custom widget can only bind to one
+    Analytic Model total, even if widget.json declares multiple named
+    dataBindings (confirmed via the Employer Election project — a widget's
+    bindings can't each point at a different model). The original 3-binding
+    design (enrollmentStatusByWave / electionSummary / waiverTrend, three
+    separate models) could never have worked. Fixed by consolidating
+    DS_MEMBER_ENROLLMENT_SUMMARY/_DAILY/_ELECTION_SUMMARY/_WAIVER_TREND into
+    ONE cube: DS_MEMBER_ENROLLMENT_SUMMARY, now a UNION ALL of 4 "row-kinds"
+    (mirroring the Employer suite's own multiplexed-cube pattern), each
+    populating only the dimensions/measures relevant to it and leaving the
+    rest NULL, plus a RowKind discriminator column. One Analytic Model
+    (AM_MEMBER_ENROLLMENT_SUMMARY) wraps that cube; this widget's single
+    "aggregateData" binding reads the whole thing and filters by RowKind
+    per panel.
+
     SAC's standard ResultSet row shape ({ data: [ { dimensions_0: {id,
-    label}, ..., measures_0: {raw,formatted}, ... } ] }):
+    label}, ..., measures_0: {raw,formatted}, ... } ] }) — dimensions and
+    measures MUST be added in the Builder panel in this exact order (SAC
+    binds by position, not by name):
 
-      - enrollmentStatusByWave  <- DS_MEMBER_ENROLLMENT_SUMMARY (same cube
-                                    the Snap widget binds to)
-            dimensions_0 = Wave, dimensions_1 = Enrollment Status,
-            dimensions_2 = Defaulted, dimensions_3 = Defaulted Timing
-            measures_0 = Member Count, measures_1 = Multiple-Attempts Count
-            measures_2 = Total Eligible Lives, measures_3 = Total Covered
-                          Lives (added 2026-09-22 -- vDimMember's own
-                          EligibleCount/HealthCoveredCount, member plus
-                          eligible/covered dependents, current snapshot
-                          only. NOT a year-over-year trend -- that's a
-                          separate, still-open effort Blair is pursuing
-                          directly with Ahmed. See GOLD_VIEW_SPEC.md §10k
-                          for why this isn't the originally-planned
-                          "enrollment-volume YoY" metric.)
+      Dimensions (8): RowKind, EventDate, Wave, Enrollment_Status,
+                       Defaulted, Defaulted_Timing, ActivityDate,
+                       Membership_Type
+      Measures (22):  MemberCount, MultipleAttemptsMemberCount,
+                       TotalEligibleLives, TotalCoveredLives, WaivedCount,
+                       HSA_Count, HSA_Avg_Amount, FSA_Health_Count,
+                       FSA_Health_Avg_Amount, FSA_Dependent_Count,
+                       FSA_Dependent_Avg_Amount, SuppLife_Member_Count,
+                       SuppLife_Member_Avg_Amount, SuppLife_Spouse_Count,
+                       SuppLife_Spouse_Avg_Amount, SuppLife_Dependent_Count,
+                       SuppLife_Dependent_Avg_Amount, Retirement_Pretax_Count,
+                       Retirement_Pretax_Avg_Amount, Retirement_Roth_Count,
+                       Retirement_Roth_Avg_Amount, Vision_Election_Count
 
-      - electionSummary         <- DS_MEMBER_ELECTION_SUMMARY
-            dimensions_0 = Wave
-            measures_0/1   = HSA_Count / HSA_Avg_Amount
-            measures_2/3   = FSA_Health_Count / FSA_Health_Avg_Amount
-            measures_4/5   = FSA_Dependent_Count / FSA_Dependent_Avg_Amount
-            measures_6/7   = SuppLife_Member_Count / _Avg_Amount
-            measures_8/9   = SuppLife_Spouse_Count / _Avg_Amount
-            measures_10/11 = SuppLife_Dependent_Count / _Avg_Amount
-            measures_12/13 = Retirement_Pretax_Count / _Avg_Amount
-            measures_14/15 = Retirement_Roth_Count / _Avg_Amount
-            measures_16    = Vision_Election_Count
+    RowKind values and which of the above they actually populate:
+      - 'StatusByWave'    -> Wave, Enrollment_Status, Defaulted,
+                              Defaulted_Timing / MemberCount,
+                              MultipleAttemptsMemberCount,
+                              TotalEligibleLives, TotalCoveredLives
+      - 'DailyTrend'      -> Wave, Enrollment_Status, ActivityDate /
+                              MemberCount   (not rendered by this widget
+                              today -- Snap's own timeline uses this;
+                              kept here since it's the same one model)
+      - 'ElectionSummary' -> Wave / HSA..Vision_Election_Count
+      - 'WaiverTrend'     -> EventDate, Membership_Type / MemberCount,
+                              WaivedCount
 
-      - waiverTrend             <- DS_MEMBER_WAIVER_TREND
-            dimensions_0 = EventDate (cycle, e.g. "2027-01-01")
-            dimensions_1 = Membership Type (Sponsored / Retired / Other)
-            measures_0 = Member Count, measures_1 = Waived Count
+    Known caveat: the *_Avg_Amount measures are pre-computed averages at
+    the Wave grain (from DS_MEMBER_ENROLLMENT_SUMMARY's own GROUP BY) —
+    marked SUM on the Analytic Model only because that's the only
+    aggregation type available for a measure. They are NOT safe to
+    aggregate further across Wave. Always read them per-Wave (as this
+    widget already does via _weightedTotal), never request them without
+    Wave also present.
+
+    Wave = NULL rows (no AE_EventRqsts tag matched) are deliberately left
+    out of every panel below, per Blair's explicit 2026-09-29 decision —
+    not surfaced as an "Unassigned" bucket. Revisit if that decision
+    changes.
 
     No in-widget filter controls, no theme toggle, light theme only — same
     reasoning as every widget in this suite: SAC's Optimized-story View
     mode doesn't deliver internal click/change events to a custom widget's
     shadow DOM. Filtering belongs in a native SAC Input Control.
 
-    Not yet bound to real data — DS_MEMBER_ELECTION_SUMMARY and
-    DS_MEMBER_WAIVER_TREND don't exist yet (drafted, not deployed, see
-    BUILD_PLAN_FOR_AHMED.md). Renders from MOCK_* constants below so the
+    Not yet bound to real data for ElectionSummary/WaiverTrend as of this
+    header being written — renders from MOCK_* constants below so the
     layout can be built and reviewed standalone (see preview.html).
 
     Not in this widget: EOI (Evidence of Insurability) counts — explicitly
@@ -75,56 +100,80 @@
     const STATUS_LABELS = { "Success": "Completed", "Abandoned": "Started, Not Completed", "Not Started": "Not Started", "In Progress": "In Progress", "Needs Follow-up": "Needs Follow-up" };
 
     // ---- Mock data (mirrors the real SAC ResultSet row shape) ----
+    // Dimension order (8): RowKind, EventDate, Wave, Enrollment_Status,
+    //                       Defaulted, Defaulted_Timing, ActivityDate,
+    //                       Membership_Type
+    // Measure order (22): MemberCount, MultipleAttemptsMemberCount,
+    //   TotalEligibleLives, TotalCoveredLives, WaivedCount, HSA_Count,
+    //   HSA_Avg_Amount, FSA_Health_Count, FSA_Health_Avg_Amount,
+    //   FSA_Dependent_Count, FSA_Dependent_Avg_Amount, SuppLife_Member_Count,
+    //   SuppLife_Member_Avg_Amount, SuppLife_Spouse_Count,
+    //   SuppLife_Spouse_Avg_Amount, SuppLife_Dependent_Count,
+    //   SuppLife_Dependent_Avg_Amount, Retirement_Pretax_Count,
+    //   Retirement_Pretax_Avg_Amount, Retirement_Roth_Count,
+    //   Retirement_Roth_Avg_Amount, Vision_Election_Count
     function row(dims, measures) {
         const out = {};
         dims.forEach((d, i) => { out["dimensions_" + i] = { id: d, label: d }; });
-        measures.forEach((m, i) => { out["measures_" + i] = { raw: m, formatted: String(m) }; });
+        measures.forEach((m, i) => { out["measures_" + i] = { raw: m, formatted: m == null ? "" : String(m) }; });
         return out;
     }
 
     // measures_2/3 (Total Eligible/Covered Lives) approximate a ~2.1
     // average family size, covered slightly below eligible -- illustrative
     // mock ratios only, not derived from any real distribution.
-    function withLives(count, multi) {
-        return [count, multi, Math.round(count * 2.1), Math.round(count * 1.85)];
+    function rowStatusByWave(wave, status, defaulted, defaultedTiming, count, multi) {
+        return row(
+            ["StatusByWave", null, wave, status, defaulted, defaultedTiming, null, null],
+            [count, multi, Math.round(count * 2.1), Math.round(count * 1.85), null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null]
+        );
     }
-    const MOCK_ENROLLMENT_STATUS_BY_WAVE = { data: [
-        row(["Wave 1", "Success", "No", "N/A"], withLives(610, 140)),
-        row(["Wave 1", "Abandoned", "No", "N/A"], withLives(35, 28)),
-        row(["Wave 1", "In Progress", "No", "N/A"], withLives(8, 3)),
-        row(["Wave 1", "Not Started", "Yes", "Before PSP"], withLives(25, 0)),
-        row(["Wave 1", "Not Started", "Yes", "After PSP"], withLives(12, 0)),
-        row(["Wave 1", "Needs Follow-up", "No", "N/A"], withLives(15, 6)),
-        row(["Wave 2a", "Success", "No", "N/A"], withLives(340, 55)),
-        row(["Wave 2a", "Abandoned", "No", "N/A"], withLives(18, 12)),
-        row(["Wave 2a", "In Progress", "No", "N/A"], withLives(5, 1)),
-        row(["Wave 2a", "Not Started", "Yes", "Before PSP"], withLives(14, 0)),
-        row(["Wave 2a", "Not Started", "Yes", "After PSP"], withLives(6, 0)),
-        row(["Wave 2a", "Needs Follow-up", "No", "N/A"], withLives(9, 4)),
-        row(["Wave 2b", "Success", "No", "N/A"], withLives(480, 60)),
-        row(["Wave 2b", "Abandoned", "No", "N/A"], withLives(22, 15)),
-        row(["Wave 2b", "In Progress", "No", "N/A"], withLives(11, 2)),
-        row(["Wave 2b", "Not Started", "Yes", "N/A"], withLives(31, 0)),
-        row(["Wave 2b", "Needs Follow-up", "No", "N/A"], withLives(13, 5)),
-        row(["Wave 3", "Success", "No", "N/A"], withLives(42, 6)),
-        row(["Wave 3", "Abandoned", "No", "N/A"], withLives(2, 1)),
-        row(["Wave 3", "Not Started", "Yes", "N/A"], withLives(5, 0)),
-    ] };
+    function rowElectionSummary(wave, values17) {
+        return row(
+            ["ElectionSummary", null, wave, null, null, null, null, null],
+            [null, null, null, null, null].concat(values17)
+        );
+    }
+    function rowWaiverTrend(cycle, type, count, waived) {
+        return row(
+            ["WaiverTrend", cycle, null, null, null, null, null, type],
+            [count, null, null, null, waived, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null]
+        );
+    }
 
-    const MOCK_ELECTION_SUMMARY = { data: [
-        row(["Wave 1"], [312, 1450, 96, 890, 41, 610, 28, 75000, 19, 42000, 22, 31000, 88, 340, 54, 190, 190]),
-        row(["Wave 2a"], [175, 1390, 52, 870, 23, 590, 15, 68000, 11, 39000, 12, 29500, 49, 320, 31, 175, 108]),
-        row(["Wave 2b"], [201, 1200, 60, 810, 27, 560, 17, 61000, 13, 35000, 14, 27000, 55, 295, 36, 160, 140]),
-        row(["Wave 3"], [14, 980, 4, 700, 2, 480, 1, 50000, 1, 30000, 1, 24000, 4, 260, 3, 140, 9]),
-    ] };
+    const MOCK_AGGREGATE_DATA = { data: [
+        rowStatusByWave("Wave 1", "Success", "No", "N/A", 610, 140),
+        rowStatusByWave("Wave 1", "Abandoned", "No", "N/A", 35, 28),
+        rowStatusByWave("Wave 1", "In Progress", "No", "N/A", 8, 3),
+        rowStatusByWave("Wave 1", "Not Started", "Yes", "Before PSP", 25, 0),
+        rowStatusByWave("Wave 1", "Not Started", "Yes", "After PSP", 12, 0),
+        rowStatusByWave("Wave 1", "Needs Follow-up", "No", "N/A", 15, 6),
+        rowStatusByWave("Wave 2a", "Success", "No", "N/A", 340, 55),
+        rowStatusByWave("Wave 2a", "Abandoned", "No", "N/A", 18, 12),
+        rowStatusByWave("Wave 2a", "In Progress", "No", "N/A", 5, 1),
+        rowStatusByWave("Wave 2a", "Not Started", "Yes", "Before PSP", 14, 0),
+        rowStatusByWave("Wave 2a", "Not Started", "Yes", "After PSP", 6, 0),
+        rowStatusByWave("Wave 2a", "Needs Follow-up", "No", "N/A", 9, 4),
+        rowStatusByWave("Wave 2b", "Success", "No", "N/A", 480, 60),
+        rowStatusByWave("Wave 2b", "Abandoned", "No", "N/A", 22, 15),
+        rowStatusByWave("Wave 2b", "In Progress", "No", "N/A", 11, 2),
+        rowStatusByWave("Wave 2b", "Not Started", "Yes", "N/A", 31, 0),
+        rowStatusByWave("Wave 2b", "Needs Follow-up", "No", "N/A", 13, 5),
+        rowStatusByWave("Wave 3", "Success", "No", "N/A", 42, 6),
+        rowStatusByWave("Wave 3", "Abandoned", "No", "N/A", 2, 1),
+        rowStatusByWave("Wave 3", "Not Started", "Yes", "N/A", 5, 0),
 
-    const MOCK_WAIVER_TREND = { data: [
-        row(["2026-01-01", "Sponsored"], [18, 2]),
-        row(["2026-01-01", "Retired"], [9, 3]),
-        row(["2026-01-01", "Other"], [54, 6]),
-        row(["2027-01-01", "Sponsored"], [612, 96]),
-        row(["2027-01-01", "Retired"], [340, 145]),
-        row(["2027-01-01", "Other"], [751, 78]),
+        rowElectionSummary("Wave 1", [312, 1450, 96, 890, 41, 610, 28, 75000, 19, 42000, 22, 31000, 88, 340, 54, 190, 190]),
+        rowElectionSummary("Wave 2a", [175, 1390, 52, 870, 23, 590, 15, 68000, 11, 39000, 12, 29500, 49, 320, 31, 175, 108]),
+        rowElectionSummary("Wave 2b", [201, 1200, 60, 810, 27, 560, 17, 61000, 13, 35000, 14, 27000, 55, 295, 36, 160, 140]),
+        rowElectionSummary("Wave 3", [14, 980, 4, 700, 2, 480, 1, 50000, 1, 30000, 1, 24000, 4, 260, 3, 140, 9]),
+
+        rowWaiverTrend("2026-01-01", "Sponsored", 18, 2),
+        rowWaiverTrend("2026-01-01", "Retired", 9, 3),
+        rowWaiverTrend("2026-01-01", "Other", 54, 6),
+        rowWaiverTrend("2027-01-01", "Sponsored", 612, 96),
+        rowWaiverTrend("2027-01-01", "Retired", 340, 145),
+        rowWaiverTrend("2027-01-01", "Other", 751, 78),
     ] };
 
     // ---- Template ----
@@ -247,9 +296,7 @@
             this._shadowRoot.appendChild(template.content.cloneNode(true));
 
             this._props = { width: 900, height: 750 };
-            this._enrollmentStatusByWave = MOCK_ENROLLMENT_STATUS_BY_WAVE;
-            this._electionSummary = MOCK_ELECTION_SUMMARY;
-            this._waiverTrend = MOCK_WAIVER_TREND;
+            this._aggregateData = MOCK_AGGREGATE_DATA;
             this._usingMockData = true;
         }
 
@@ -264,9 +311,7 @@
         onCustomWidgetAfterUpdate(changedProperties) {
             if ("width" in changedProperties) this.style.width = changedProperties.width + "px";
             if ("height" in changedProperties) this.style.height = changedProperties.height + "px";
-            if ("enrollmentStatusByWave" in changedProperties) { this._enrollmentStatusByWave = changedProperties.enrollmentStatusByWave; this._usingMockData = false; }
-            if ("electionSummary" in changedProperties) { this._electionSummary = changedProperties.electionSummary; this._usingMockData = false; }
-            if ("waiverTrend" in changedProperties) { this._waiverTrend = changedProperties.waiverTrend; this._usingMockData = false; }
+            if ("aggregateData" in changedProperties) { this._aggregateData = changedProperties.aggregateData; this._usingMockData = false; }
             this._render();
         }
 
@@ -279,17 +324,24 @@
         }
 
         // ---- Parsing helpers ----
+        // Dimension/measure indices below match the ONE consolidated
+        // model's fixed column order documented in the file header --
+        // RowKind is always dimensions_0.
         _dim(r, i) {
             const d = r["dimensions_" + i];
             return d ? d.label : "";
         }
         _measure(r, i) {
             const m = r["measures_" + i];
-            return m ? Number(m.raw) : 0;
+            return m && m.raw != null ? Number(m.raw) : 0;
+        }
+        _rowsOfKind(kind) {
+            const rows = (this._aggregateData && this._aggregateData.data) || [];
+            return rows.filter((r) => this._dim(r, 0) === kind);
         }
 
         _parseStatusByWave() {
-            const rows = (this._enrollmentStatusByWave && this._enrollmentStatusByWave.data) || [];
+            const rows = this._rowsOfKind("StatusByWave");
             const byWave = {};
             WAVES.forEach((w) => {
                 byWave[w] = { total: 0, byStatus: {} };
@@ -297,8 +349,8 @@
             });
             let totalEligibleLives = 0, totalCoveredLives = 0;
             rows.forEach((r) => {
-                const wave = this._dim(r, 0);
-                const status = this._dim(r, 1);
+                const wave = this._dim(r, 2);
+                const status = this._dim(r, 3);
                 const count = this._measure(r, 0);
                 totalEligibleLives += this._measure(r, 2);
                 totalCoveredLives += this._measure(r, 3);
@@ -323,30 +375,30 @@
         }
 
         _parseElectionSummary() {
-            const rows = (this._electionSummary && this._electionSummary.data) || [];
+            const rows = this._rowsOfKind("ElectionSummary");
             let visionCount = 0;
-            rows.forEach((r) => { visionCount += this._measure(r, 16); });
+            rows.forEach((r) => { visionCount += this._measure(r, 21); });
             return {
-                hsa: this._weightedTotal(rows, 0, 1),
-                fsaHealth: this._weightedTotal(rows, 2, 3),
-                fsaDependent: this._weightedTotal(rows, 4, 5),
-                suppLifeMember: this._weightedTotal(rows, 6, 7),
-                suppLifeSpouse: this._weightedTotal(rows, 8, 9),
-                suppLifeDependent: this._weightedTotal(rows, 10, 11),
-                retirementPretax: this._weightedTotal(rows, 12, 13),
-                retirementRoth: this._weightedTotal(rows, 14, 15),
+                hsa: this._weightedTotal(rows, 5, 6),
+                fsaHealth: this._weightedTotal(rows, 7, 8),
+                fsaDependent: this._weightedTotal(rows, 9, 10),
+                suppLifeMember: this._weightedTotal(rows, 11, 12),
+                suppLifeSpouse: this._weightedTotal(rows, 13, 14),
+                suppLifeDependent: this._weightedTotal(rows, 15, 16),
+                retirementPretax: this._weightedTotal(rows, 17, 18),
+                retirementRoth: this._weightedTotal(rows, 19, 20),
                 visionCount,
             };
         }
 
         _parseWaiverTrend() {
-            const rows = (this._waiverTrend && this._waiverTrend.data) || [];
+            const rows = this._rowsOfKind("WaiverTrend");
             const byType = {};
             rows.forEach((r) => {
-                const cycle = this._dim(r, 0);
-                const type = this._dim(r, 1);
+                const cycle = this._dim(r, 1);
+                const type = this._dim(r, 7);
                 const memberCount = this._measure(r, 0);
-                const waivedCount = this._measure(r, 1);
+                const waivedCount = this._measure(r, 4);
                 if (!byType[type]) byType[type] = {};
                 byType[type][cycle] = { memberCount, waivedCount };
             });
