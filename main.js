@@ -35,9 +35,9 @@
     measures MUST be added in the Builder panel in this exact order (SAC
     binds by position, not by name):
 
-      Dimensions (8): RowKind, EventDate, Wave, Enrollment_Status,
+      Dimensions (9): RowKind, EventDate, Wave, Enrollment_Status,
                        Defaulted, Defaulted_Timing, ActivityDate,
-                       Membership_Type
+                       Membership_Type, Is_Portico_Employee
       Measures (22):  MemberCount, MultipleAttemptsMemberCount,
                        TotalEligibleLives, TotalCoveredLives, WaivedCount,
                        HSA_Count, HSA_Avg_Amount, FSA_Health_Count,
@@ -61,6 +61,13 @@
       - 'ElectionSummary' -> Wave / HSA..Vision_Election_Count
       - 'WaiverTrend'     -> EventDate, Membership_Type / MemberCount,
                               WaivedCount
+
+    ADDED 2026-10-01 (per Blair): Is_Portico_Employee -- Portico's own
+    employees are EXCLUDED from this widget's numbers entirely, via a
+    check built into _rowsOfKind() so every row-kind read by this widget
+    gets it automatically. The mirror widget showing ONLY Portico
+    employees is sac-member-operational-portico-widget -- same model,
+    same code shape, opposite filter.
 
     Known caveat: the *_Avg_Amount measures are pre-computed averages at
     the Wave grain (from DS_MEMBER_ENROLLMENT_SUMMARY's own GROUP BY) —
@@ -100,9 +107,9 @@
     const STATUS_LABELS = { "Success": "Completed", "Abandoned": "Started, Not Completed", "Not Started": "Not Started", "In Progress": "In Progress", "Needs Follow-up": "Needs Follow-up" };
 
     // ---- Mock data (mirrors the real SAC ResultSet row shape) ----
-    // Dimension order (8): RowKind, EventDate, Wave, Enrollment_Status,
+    // Dimension order (9): RowKind, EventDate, Wave, Enrollment_Status,
     //                       Defaulted, Defaulted_Timing, ActivityDate,
-    //                       Membership_Type
+    //                       Membership_Type, Is_Portico_Employee
     // Measure order (22): MemberCount, MultipleAttemptsMemberCount,
     //   TotalEligibleLives, TotalCoveredLives, WaivedCount, HSA_Count,
     //   HSA_Avg_Amount, FSA_Health_Count, FSA_Health_Avg_Amount,
@@ -122,21 +129,23 @@
     // measures_2/3 (Total Eligible/Covered Lives) approximate a ~2.1
     // average family size, covered slightly below eligible -- illustrative
     // mock ratios only, not derived from any real distribution.
-    function rowStatusByWave(wave, status, defaulted, defaultedTiming, count, multi) {
+    // isPortico defaults to "No" -- this widget's own mock population is
+    // the general (non-Portico) member base it's meant to show.
+    function rowStatusByWave(wave, status, defaulted, defaultedTiming, count, multi, isPortico) {
         return row(
-            ["StatusByWave", null, wave, status, defaulted, defaultedTiming, null, null],
+            ["StatusByWave", null, wave, status, defaulted, defaultedTiming, null, null, isPortico || "No"],
             [count, multi, Math.round(count * 2.1), Math.round(count * 1.85), null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null]
         );
     }
-    function rowElectionSummary(wave, values17) {
+    function rowElectionSummary(wave, values17, isPortico) {
         return row(
-            ["ElectionSummary", null, wave, null, null, null, null, null],
+            ["ElectionSummary", null, wave, null, null, null, null, null, isPortico || "No"],
             [null, null, null, null, null].concat(values17)
         );
     }
-    function rowWaiverTrend(cycle, type, count, waived) {
+    function rowWaiverTrend(cycle, type, count, waived, isPortico) {
         return row(
-            ["WaiverTrend", cycle, null, null, null, null, null, type],
+            ["WaiverTrend", cycle, null, null, null, null, null, type, isPortico || "No"],
             [count, null, null, null, waived, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null]
         );
     }
@@ -335,9 +344,12 @@
             const m = r["measures_" + i];
             return m && m.raw != null ? Number(m.raw) : 0;
         }
+        // Excludes Portico's own employees (Is_Portico_Employee,
+        // dimensions_8) from every row-kind this widget reads -- added
+        // 2026-10-01 per Blair. Centralized here so no caller can forget it.
         _rowsOfKind(kind) {
             const rows = (this._aggregateData && this._aggregateData.data) || [];
-            return rows.filter((r) => this._dim(r, 0) === kind);
+            return rows.filter((r) => this._dim(r, 0) === kind && this._dim(r, 8) !== "Yes");
         }
 
         _parseStatusByWave() {
