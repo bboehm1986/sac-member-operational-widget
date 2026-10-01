@@ -180,7 +180,12 @@
         rowWaiverTrend("2026-01-01", "Sponsored", 18, 2),
         rowWaiverTrend("2026-01-01", "Retired", 9, 3),
         rowWaiverTrend("2026-01-01", "Other", 54, 6),
-        rowWaiverTrend("2027-01-01", "Sponsored", 612, 96),
+        // Sponsored/2027 deliberately split into two rows (summing to the
+        // same 612/96 as before) to prove _parseWaiverTrend accumulates
+        // correctly now that WaiverTrend's real GROUP BY can return more
+        // than one row per (type, cycle) -- see _parseWaiverTrend's comment.
+        rowWaiverTrend("2027-01-01", "Sponsored", 400, 60),
+        rowWaiverTrend("2027-01-01", "Sponsored", 212, 36),
         rowWaiverTrend("2027-01-01", "Retired", 340, 145),
         rowWaiverTrend("2027-01-01", "Other", 751, 78),
     ] };
@@ -403,6 +408,12 @@
             };
         }
 
+        // Sums across cycle+type, not a per-row assign -- WaiverTrend's
+        // GROUP BY was widened 2026-10-01 to also carry real Wave/Status/
+        // Defaulted/Defaulted_Timing (so those dimensions are safe to
+        // filter story-wide without blanking this panel), which means
+        // multiple rows can now share the same (type, cycle). An
+        // overwriting assign here would silently keep only the last one.
         _parseWaiverTrend() {
             const rows = this._rowsOfKind("WaiverTrend");
             const byType = {};
@@ -412,7 +423,9 @@
                 const memberCount = this._measure(r, 0);
                 const waivedCount = this._measure(r, 4);
                 if (!byType[type]) byType[type] = {};
-                byType[type][cycle] = { memberCount, waivedCount };
+                if (!byType[type][cycle]) byType[type][cycle] = { memberCount: 0, waivedCount: 0 };
+                byType[type][cycle].memberCount += memberCount;
+                byType[type][cycle].waivedCount += waivedCount;
             });
             return byType;
         }
