@@ -345,9 +345,15 @@
             const d = r["dimensions_" + i];
             return d ? d.label : "";
         }
+        // A null measure (placeholder columns, or an average over zero
+        // electors) can arrive as a non-numeric token, not a real null;
+        // Number() of that is NaN and poisons every sum and weighted
+        // average downstream. Anything non-finite counts as 0.
         _measure(r, i) {
             const m = r["measures_" + i];
-            return m && m.raw != null ? Number(m.raw) : 0;
+            if (!m) return 0;
+            const n = Number(m.raw);
+            return Number.isFinite(n) ? n : 0;
         }
         // Excludes Portico's own employees (Is_Portico_Employee,
         // dimensions_8) from every row-kind this widget reads -- added
