@@ -96,8 +96,11 @@
     enrollment-volume year-over-year trending — Total Eligible/Covered
     Lives (above) is a current-snapshot family-size count, not a YoY
     trend; restoring real YoY trending capability is a separate, still-
-    open effort Blair is pursuing directly with Ahmed. See the notice
-    text in _render().
+    open effort Blair is pursuing directly with Ahmed.
+
+    No in-widget "open items"/caveat banners, by Blair's explicit decision
+    (2026-10-05): open items are tracked in the working session, never
+    rendered on the dashboard.
 */
 (function () {
     "use strict";
@@ -273,7 +276,6 @@
             .trend-delta.down { color: var(--success); }
             .trend-delta.flat { color: var(--text-soft); }
 
-            .notice { margin-top: 18px; background: var(--warning-bg); border: 1px solid rgba(165,112,12,0.3); border-radius: 14px; padding: 10px 14px; font-size: 11.5px; color: var(--text); box-shadow: var(--shadow-card); }
         </style>
         <div class="dashboard">
             <div class="topbar">
@@ -298,8 +300,6 @@
 
             <div class="section-title">Waiver Trend — by Membership Type</div>
             <div class="panels" id="waiverPanels"></div>
-
-            <div class="notice" id="notice"></div>
         </div>
     `;
 
@@ -523,12 +523,6 @@
                         <div class="trend-delta ${deltaCls}">${deltaLabel}</div>
                     </div>`;
             }).join("");
-
-            root.getElementById("notice").textContent =
-                "⚠ Covered Lives are a current snapshot (member + eligible/covered dependents), " +
-                "not a year-over-year trend — restoring real YoY volume trending is a separate, " +
-                "still-open effort with Ahmed. EOI counts are also not yet available (explicitly " +
-                "parked, TBD on script). See GOLD_VIEW_SPEC.md §10j/§10k in ae-member-enrollment-report/.";
         }
     }
 
