@@ -427,7 +427,10 @@
             const rows = this._rowsOfKind("WaiverTrend");
             const byType = {};
             rows.forEach((r) => {
-                const cycle = this._dim(r, 1);
+                // SAC sends date labels locale-formatted ("Jan 1, 2026"), not
+                // ISO, so key by the 4-digit year instead of matching the label.
+                const yearMatch = /(20\d{2})/.exec(this._dim(r, 1));
+                const cycle = yearMatch ? yearMatch[1] : this._dim(r, 1);
                 const type = this._dim(r, 7);
                 const memberCount = this._measure(r, 0);
                 const waivedCount = this._measure(r, 4);
@@ -516,8 +519,8 @@
             const types = ["Sponsored", "Retired", "Other"];
             root.getElementById("waiverPanels").innerHTML = types.map((t) => {
                 const d = waiver[t] || {};
-                const prior = d["2026-01-01"] || { memberCount: 0, waivedCount: 0 };
-                const current = d["2027-01-01"] || { memberCount: 0, waivedCount: 0 };
+                const prior = d["2026"] || { memberCount: 0, waivedCount: 0 };
+                const current = d["2027"] || { memberCount: 0, waivedCount: 0 };
                 const priorPct = prior.memberCount ? (prior.waivedCount / prior.memberCount) * 100 : 0;
                 const currentPct = current.memberCount ? (current.waivedCount / current.memberCount) * 100 : 0;
                 const delta = currentPct - priorPct;
