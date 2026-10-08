@@ -431,7 +431,11 @@
                 // ISO, so key by the 4-digit year instead of matching the label.
                 const yearMatch = /(20\d{2})/.exec(this._dim(r, 1));
                 const cycle = yearMatch ? yearMatch[1] : this._dim(r, 1);
-                const type = this._dim(r, 7);
+                // Members with no vDimMember row for their year arrive with an
+                // empty / unassigned type (the label varies); by definition they
+                // are neither Sponsored nor Retired, so they count as Other.
+                const rawType = this._dim(r, 7);
+                const type = (rawType === "Sponsored" || rawType === "Retired") ? rawType : "Other";
                 const memberCount = this._measure(r, 0);
                 const waivedCount = this._measure(r, 4);
                 if (!byType[type]) byType[type] = {};
