@@ -280,7 +280,7 @@
         <div class="dashboard">
             <div class="topbar">
                 <div>
-                    <div class="eyebrow">2026 Annual Enrollment — Operational</div>
+                    <div class="eyebrow">2027 Annual Enrollment — Operational</div>
                     <div class="titlewrap">
                         <h1>Member Enrollment — Working Detail</h1>
                         <span class="badge accent" id="dataBadge">Mock Data — Preview</span>
