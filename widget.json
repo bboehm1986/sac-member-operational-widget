@@ -1,7 +1,7 @@
 {
     "id": "com.porticobenefits.memberoperations",
     "name": "AE Member Enrollment Operational Dashboard",
-    "version": "1.4.3",
+    "version": "1.4.4",
     "vendor": "Portico Benefits",
     "license": "",
     "eula": "",
@@ -13,7 +13,7 @@
             "kind": "main",
             "tag": "com-porticobenefits-memberoperations",
             "url": "https://bboehm1986.github.io/sac-member-operational-widget/main.js",
-            "integrity": "sha384-adVZBYfAiIxpxsaRB45M/hdMFDsZMf7SdpS/EwvAdMMbS3OjclzSpFgrKamLI22m"
+            "integrity": "sha384-zyflAmymmNnHdZX4Ti9NaeVhYOMvMi2KnIU6yWjLkd3MlXCAXK2n4hBDdRbBDFVY"
         }
     ],
     "properties": {
